@@ -12,6 +12,13 @@ static ptr_int_t *main_sp = NULL;
 // Optional custom scheduler
 static schedfun scheduler = NULL;
 
+static void lwp_bootstrap() {
+    lwpfun f = (lwpfun)lwp_ptable[lwp_running].sp[2];
+    void* arg = (void*)lwp_ptable[lwp_running].sp[3];
+    f(arg);
+    lwp_exit();  // return safely
+}
+
 int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     if (lwp_procs >= LWP_PROC_LIMIT) return -1;
 
@@ -21,15 +28,21 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
 
     ptr_int_t *sp = stack + stacksize;
 
-    *(--sp) = (ptr_int_t)arg;        // argument to pass
-    *(--sp) = (ptr_int_t)lwp_exit;   // return address after thread finishes
-    *(--sp) = (ptr_int_t)fun;        // "fake" return to thread function
-
+    *(--sp) = (ptr_int_t)arg;            // pushed as data, not part of call stack
+    *(--sp) = 0;                         // unused padding or extra return
+    *(--sp) = (ptr_int_t)fun;            // store function pointer
+    
+    // dummy regs
     int i;
-    for (i = 0; i < 6; i++) *(--sp) = 0;  // dummy edi, esi, edx, ecx, ebx, eax
-
+    for (i = 0; i < 6; i++) *(--sp) = 0;
+    
+    // fake ebp
     sp--;
-    *sp = (ptr_int_t)(sp + 1);  // fake ebp
+    *sp = (ptr_int_t)(sp + 1);
+    
+    // Replace function pointer on stack with lwp_bootstrap
+    // When RESTORE_STATE is called, it will "return" to this
+    *(--sp) = (ptr_int_t)lwp_bootstrap;
 
 
     proc->pid = lwp_procs;
@@ -37,7 +50,7 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     proc->stacksize = stacksize;
     proc->sp = sp;
 
-    printf("[DEBUG] Created LWP %lu, stack base = %p, sp = %p\n", (unsigned long)proc->pid, (void*)stack, (void*)sp);
+    // printf("[DEBUG] Created LWP %lu, stack base = %p, sp = %p\n", (unsigned long)proc->pid, (void*)stack, (void*)sp);
 
     return lwp_procs++;
 }
