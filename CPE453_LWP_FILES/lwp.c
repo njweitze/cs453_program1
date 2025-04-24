@@ -30,5 +30,8 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     proc->stacksize = stacksize;
     proc->sp = sp;
 
+    printf("[DEBUG] Created LWP %d, stack base = %p, sp = %p\n",
+        proc->pid, (void*)stack, (void*)sp);
+
     return lwp_procs++;
 }
