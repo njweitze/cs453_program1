@@ -12,12 +12,6 @@ static ptr_int_t *main_sp = NULL;
 // Optional custom scheduler
 static schedfun scheduler = NULL;
 
-static void lwp_bootstrap() {
-    lwpfun f = (lwpfun)lwp_ptable[lwp_running].sp[2];
-    void* arg = (void*)lwp_ptable[lwp_running].sp[3];
-    f(arg);
-    lwp_exit();  // return safely
-}
 
 int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     if (lwp_procs >= LWP_PROC_LIMIT) return -1;
@@ -26,31 +20,34 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     ptr_int_t *stack = malloc(stacksize * sizeof(ptr_int_t));
     if (!stack) return -1;
 
-    ptr_int_t *sp = stack + stacksize;
+    ptr_int_t *sp = stack + stacksize;  // top of stack
 
-    *(--sp) = (ptr_int_t)arg;            // pushed as data, not part of call stack
-    *(--sp) = 0;                         // unused padding or extra return
-    *(--sp) = (ptr_int_t)fun;            // store function pointer
-    
-    // dummy regs
-    int i;
-    for (i = 0; i < 6; i++) *(--sp) = 0;
-    
-    // fake ebp
-    sp--;
-    *sp = (ptr_int_t)(sp + 1);
-    
-    // Replace function pointer on stack with lwp_bootstrap
-    // When RESTORE_STATE is called, it will "return" to this
-    *(--sp) = (ptr_int_t)lwp_bootstrap;
+    // === Setup fake stack frame ===
 
+    // Push argument for the function
+    *(--sp) = (ptr_int_t)arg;
+
+    // Push fake return address (when function finishes, call lwp_exit)
+    *(--sp) = (ptr_int_t)lwp_exit;
+
+    // Push fake base pointer (ebp) — it can just point to the current top
+    *(--sp) = (ptr_int_t)0;  // or NULL
+
+    // Push dummy values for callee-saved registers expected by RESTORE_STATE
+    *(--sp) = 0; // edi
+    *(--sp) = 0; // esi
+    *(--sp) = 0; // edx
+    *(--sp) = 0; // ecx
+    *(--sp) = 0; // ebx
+    *(--sp) = 0; // eax
+
+    // Finally, push the thread function itself, which will act as the "return" point
+    *(--sp) = (ptr_int_t)fun;
 
     proc->pid = lwp_procs;
     proc->stack = stack;
     proc->stacksize = stacksize;
     proc->sp = sp;
-
-    // printf("[DEBUG] Created LWP %lu, stack base = %p, sp = %p\n", (unsigned long)proc->pid, (void*)stack, (void*)sp);
 
     return lwp_procs++;
 }
