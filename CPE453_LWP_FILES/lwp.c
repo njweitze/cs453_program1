@@ -13,17 +13,12 @@ static ptr_int_t *main_sp = NULL;
 static schedfun scheduler = NULL;
 
 static void trampoline(void) {
-    // Extract func and arg from stack manually
     ptr_int_t *esp;
     GetSP(esp);
 
-    // Stack at entry:
-    // [esp]     = trampoline return address (ignored)
-    // [esp+1]   = arg
-    // [esp+2]   = func
-
-    void *arg = (void*)esp[1];
-    lwpfun func = (lwpfun)esp[2];
+    // Skip saved registers (7), EBP (1), lwp_exit (1)
+    lwpfun func = (lwpfun)esp[9];
+    void *arg   = (void*)esp[10];
 
     func(arg);
     lwp_exit();
