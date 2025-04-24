@@ -16,6 +16,9 @@ static void trampoline(void) {
     ptr_int_t *esp;
     GetSP(esp);
     
+    // Since trampoline was "called", esp[0] is return address
+    // esp[1] = fun
+    // esp[2] = arg
     lwpfun func = (lwpfun)esp[1];
     void *arg = (void*)esp[2];
     

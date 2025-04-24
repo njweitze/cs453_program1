@@ -30,7 +30,7 @@ $(LWP): lwp.o
 	ranlib $@
 
 lwp.o: lwp.c lwp.h
-	cc -Wall -Werror -g -c -o $@ $<
+	cc -Wall -Werror -g -m32 -c -o $@ $<
 	cc -S $<
 
 clean:
