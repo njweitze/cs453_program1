@@ -34,25 +34,25 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
 
     ptr_int_t *sp = stack + stacksize;
 
-    // Step 1: Set up what trampoline() will expect (like a normal call)
-    *(--sp) = (ptr_int_t)arg;         // arg to trampoline()
-    *(--sp) = (ptr_int_t)fun;         // func to call from trampoline()
-    *(--sp) = (ptr_int_t)lwp_exit;    // return addr if func ever returns
-    *(--sp) = 0;                      // fake EBP
-    
-    // Step 2: Dummy saved registers for RESTORE_STATE
-    *(--sp) = 0; // edi
-    *(--sp) = 0; // esi
-    *(--sp) = 0; // edx
-    *(--sp) = 0; // ecx
-    *(--sp) = 0; // ebx
+    // Step 1: dummy registers
     *(--sp) = 0; // eax
-    
-    // Step 3: EIP from RESTORE_STATE jumps to trampoline
+    *(--sp) = 0; // ebx
+    *(--sp) = 0; // ecx
+    *(--sp) = 0; // edx
+    *(--sp) = 0; // esi
+    *(--sp) = 0; // edi
+
+    // Step 2: fake frame
+    *(--sp) = 0;                      // fake EBP
+    *(--sp) = (ptr_int_t)lwp_exit;    // return addr if func returns
+    *(--sp) = (ptr_int_t)fun;         // func to call
+    *(--sp) = (ptr_int_t)arg;         // argument
+
+    // Step 3: trampoline at the top — will go into EIP
     *(--sp) = (ptr_int_t)trampoline;
-    
+
     proc->sp = sp;
-    
+
     return lwp_procs++;
 }
 
