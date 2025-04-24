@@ -24,17 +24,21 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
 
     lwp_ptable[lwp_procs].stack = sp;
 
-    *(--sp) += stacksize;
+    *sp += stacksize;
+    sp--;
 
 
-    *(--sp) = (ptr_int_t)arg;        // argument to pass
-    *(--sp) = (ptr_int_t)lwp_exit;   // return address after thread finishes
-    *(--sp) = (ptr_int_t)fun;        // "fake" return to thread function
+    *sp = (ptr_int_t)arg;        // argument to pass
+    sp--;
+    *sp = (ptr_int_t)lwp_exit;   // return address after thread finishes
+    sp--;
+    *sp = (ptr_int_t)fun;        // "fake" return to thread function
+    sp--;
 
     *sp = (ptr_int_t)0xDEADBEEF;
     ptr_int_t bp = (ptr_int_t)sp;
     
-    *sp -= 7;
+    sp -= 7;
 
     *sp = (ptr_int_t)bp;
 
