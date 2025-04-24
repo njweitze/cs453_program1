@@ -62,7 +62,7 @@ void lwp_yield() {
     GetSP(lwp_ptable[lwp_running].sp);
 
     // Choose next thread (scheduler or round-robin)
-    int prev = lwp_running;
+    // int prev = lwp_running;
     if (scheduler) {
         lwp_running = scheduler();
     } else {

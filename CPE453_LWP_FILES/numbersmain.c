@@ -59,7 +59,7 @@ int main(int argc, char *argv[]){
     new_lwp(indentnum,(void*)i,INITIALSTACK);
   }
 
-  // lwp_start();                     /* returns when the last lwp exits */
+  lwp_start();                     /* returns when the last lwp exits */
 
   printf("Back from LWPS.\n");
   return 0;
