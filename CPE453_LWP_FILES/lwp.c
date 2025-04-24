@@ -22,18 +22,17 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
 
     ptr_int_t *sp = stack + stacksize;
 
-    // 👇 Stack grows down — push in reverse order of use
-
-    // Push argument for the function (this goes into the function's stack frame)
+    // --------------------
+    // (1) Push function argument
     *(--sp) = (ptr_int_t)arg;
 
-    // Push fake return address — after 'fun' returns, it "returns" to lwp_exit
+    // (2) Push fake return address to go to lwp_exit after thread function returns
     *(--sp) = (ptr_int_t)lwp_exit;
 
-    // Push dummy base pointer (so 'leave' works on return)
+    // (3) Push fake EBP (base pointer)
     *(--sp) = 0;
 
-    // Push dummy registers to match what RESTORE_STATE expects
+    // (4) Push dummy registers to simulate SAVE_STATE
     *(--sp) = 0; // edi
     *(--sp) = 0; // esi
     *(--sp) = 0; // edx
@@ -41,7 +40,7 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     *(--sp) = 0; // ebx
     *(--sp) = 0; // eax
 
-    // Push the function pointer — becomes the "return address" after RESTORE_STATE
+    // (5) Push the thread function — this will be popped into EIP by RESTORE_STATE
     *(--sp) = (ptr_int_t)fun;
 
     proc->pid = lwp_procs;
