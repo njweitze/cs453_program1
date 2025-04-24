@@ -20,20 +20,20 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     ptr_int_t *stack = malloc(stacksize * sizeof(ptr_int_t));
     if (!stack) return -1;
 
-    ptr_int_t *sp = stack + stacksize;  // top of stack
+    ptr_int_t *sp = stack + stacksize;
 
-    // === Setup fake stack frame ===
+    // 👇 Stack grows down — push in reverse order of use
 
-    // Push argument for the function
+    // Push argument for the function (this goes into the function's stack frame)
     *(--sp) = (ptr_int_t)arg;
 
-    // Push fake return address (when function finishes, call lwp_exit)
+    // Push fake return address — after 'fun' returns, it "returns" to lwp_exit
     *(--sp) = (ptr_int_t)lwp_exit;
 
-    // Push fake base pointer (ebp) — it can just point to the current top
-    *(--sp) = (ptr_int_t)0;  // or NULL
+    // Push dummy base pointer (so 'leave' works on return)
+    *(--sp) = 0;
 
-    // Push dummy values for callee-saved registers expected by RESTORE_STATE
+    // Push dummy registers to match what RESTORE_STATE expects
     *(--sp) = 0; // edi
     *(--sp) = 0; // esi
     *(--sp) = 0; // edx
@@ -41,7 +41,7 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     *(--sp) = 0; // ebx
     *(--sp) = 0; // eax
 
-    // Finally, push the thread function itself, which will act as the "return" point
+    // Push the function pointer — becomes the "return address" after RESTORE_STATE
     *(--sp) = (ptr_int_t)fun;
 
     proc->pid = lwp_procs;
