@@ -62,6 +62,16 @@ void lwp_start() {
     // Pick the first thread to run
     lwp_running = scheduler ? scheduler() : 0;
     SetSP(lwp_ptable[lwp_running].sp);
+
+    printf("[DEBUG] Switching to thread %d\n", lwp_running);
+    printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
+    ptr_int_t *p = lwp_ptable[lwp_running].sp;
+    printf("        top of stack: %p\n", (void*)p);
+    for (int i = 0; i < 10; i++) {
+        printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
+    }
+
+
     RESTORE_STATE();     // Jump into thread's context
 }
 
@@ -80,6 +90,15 @@ void lwp_yield() {
     }
 
     SetSP(lwp_ptable[lwp_running].sp);
+
+    printf("[DEBUG] Switching to thread %d\n", lwp_running);
+    printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
+    ptr_int_t *p = lwp_ptable[lwp_running].sp;
+    printf("        top of stack: %p\n", (void*)p);
+    for (int i = 0; i < 10; i++) {
+        printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
+    }
+
     RESTORE_STATE(); // Jump to next thread
 }
 
@@ -97,12 +116,30 @@ void lwp_exit() {
     if (lwp_procs == 0) {
         // No more threads, return to main
         SetSP(main_sp);
+
+        printf("[DEBUG] Switching to thread %d\n", lwp_running);
+        printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
+        ptr_int_t *p = lwp_ptable[lwp_running].sp;
+        printf("        top of stack: %p\n", (void*)p);
+        for (int i = 0; i < 10; i++) {
+            printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
+        }
+
         RESTORE_STATE();
     }
 
     // Otherwise, pick a new thread to run
     lwp_running %= lwp_procs;
     SetSP(lwp_ptable[lwp_running].sp);
+
+    printf("[DEBUG] Switching to thread %d\n", lwp_running);
+    printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
+    ptr_int_t *p = lwp_ptable[lwp_running].sp;
+    printf("        top of stack: %p\n", (void*)p);
+    for (int i = 0; i < 10; i++) {
+        printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
+    }
+
     RESTORE_STATE();
 }
 
