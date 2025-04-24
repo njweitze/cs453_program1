@@ -12,19 +12,21 @@ static ptr_int_t *main_sp = NULL;
 // Optional custom scheduler
 static schedfun scheduler = NULL;
 
-static void trampoline() {
-    // Get the function and argument from the stack
-    void *arg;
-    lwpfun func;
+static void trampoline(void) {
+    // Extract func and arg from stack manually
+    ptr_int_t *esp;
+    GetSP(esp);
 
-    asm("popl %eax");  // grab function
-    func = (lwpfun) ((ptr_int_t)__builtin_return_address(0));
+    // Stack at entry:
+    // [esp]     = trampoline return address (ignored)
+    // [esp+1]   = arg
+    // [esp+2]   = func
 
-    asm("popl %ebx");  // grab argument
-    arg = (void*) ((ptr_int_t)__builtin_return_address(0));
+    void *arg = (void*)esp[1];
+    lwpfun func = (lwpfun)esp[2];
 
     func(arg);
-    lwp_exit();  // in case func returns
+    lwp_exit();
 }
 
 int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
