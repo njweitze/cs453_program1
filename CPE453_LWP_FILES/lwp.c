@@ -70,7 +70,7 @@ void lwp_yield() {
     // Choose next thread (scheduler or round-robin)
     // int prev = lwp_running;
     if (scheduler != NULL) {
-        lwp_running = (scheduler)()
+        lwp_running = (scheduler)();
     } else {
         if (lwp_running == lwp_procs - 1) {
             lwp_running = 0;
