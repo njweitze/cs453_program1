@@ -12,7 +12,7 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     if (lwp_procs >= LWP_PROC_LIMIT) return -1;
 
     lwp_context *proc = &lwp_ptable[lwp_procs];
-    ptr_int_t *stack = malloc(stacksize * sizeof(ptr_int_t));
+    ptr_int_t *stack = malloc(stacksize * 4);
     if (!stack) return -1;
 
     ptr_int_t *sp = stack + stacksize;
@@ -21,11 +21,15 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     *(--sp) = (ptr_int_t)lwp_exit;   // return address after thread finishes
     *(--sp) = (ptr_int_t)fun;        // "fake" return to thread function
 
-    int i;
-    for (i = 0; i < 6; i++) *(--sp) = 0;  // dummy edi, esi, edx, ecx, ebx, eax
+    // int i;
+    // for (i = 0; i < 6; i++) *(--sp) = 0;  // dummy edi, esi, edx, ecx, ebx, eax
 
-    sp--;
-    *sp = (ptr_int_t)(sp + 1);  // fake ebp
+    *sp = (ptr_int_t)0xDEADBEEF;
+    ptr_int_t bp = (ptr_int_t)sp;
+    
+    *sp -= 7;  // fake ebp
+
+    *sp = (ptr_int_t)bp;
 
 
     proc->pid = lwp_procs;
