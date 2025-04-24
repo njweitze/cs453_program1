@@ -49,6 +49,9 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     *(--sp) = (ptr_int_t)fun;         // func (esp[1] in trampoline)
     *(--sp) = (ptr_int_t)arg;         // arg  (esp[2] in trampoline)
 
+    proc->pid = lwp_procs;
+    proc->stack = stack;
+    proc->stacksize = stacksize;
     proc->sp = sp;
 
 
