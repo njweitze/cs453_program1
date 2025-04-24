@@ -16,13 +16,18 @@ static void trampoline(void) {
     ptr_int_t *esp;
     GetSP(esp);
 
-    // Skip saved registers (7), EBP (1), lwp_exit (1)
-    lwpfun func = (lwpfun)esp[9];
-    void *arg   = (void*)esp[10];
+    printf("Trampoline stack:\n");
+    for (int i = 0; i < 5; i++) {
+        printf("  esp[%d] = 0x%08lx\n", i, (unsigned long)esp[i]);
+    }
+
+    lwpfun func = (lwpfun)esp[2];  // points to your function
+    void *arg = (void*)esp[3];     // points to your arg
 
     func(arg);
     lwp_exit();
 }
+
 
 int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     if (lwp_procs >= LWP_PROC_LIMIT) return -1;
