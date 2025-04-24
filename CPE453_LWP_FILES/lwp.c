@@ -24,7 +24,7 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
 
     lwp_ptable[lwp_procs].stack = sp;
 
-    *sp += stacksize;
+    sp += stacksize;
     sp--;
 
 
