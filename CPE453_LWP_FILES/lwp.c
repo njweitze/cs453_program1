@@ -38,3 +38,16 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     return lwp_procs++;
 }
 
+void lwp_yield() {
+    // stub: no context switching yet
+}
+
+void lwp_exit() {
+    // stub: doesn't do anything yet
+}
+
+void lwp_set_scheduler(schedfun sched) {
+    // stub: ignore custom scheduler for now
+}
+
+
