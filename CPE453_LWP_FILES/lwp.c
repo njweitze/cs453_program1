@@ -69,10 +69,14 @@ void lwp_yield() {
 
     // Choose next thread (scheduler or round-robin)
     // int prev = lwp_running;
-    if (scheduler) {
-        lwp_running = scheduler();
+    if (scheduler != NULL) {
+        lwp_running = (scheduler)()
     } else {
-        lwp_running = (lwp_running + 1) % lwp_procs;
+        if (lwp_running == lwp_procs - 1) {
+            lwp_running = 0;
+        } else {
+            lwp_running++;
+        }
     }
 
     SetSP(lwp_ptable[lwp_running].sp);
@@ -84,21 +88,20 @@ void lwp_yield() {
 void lwp_exit() {
     free(lwp_ptable[lwp_running].stack);
 
-    // Shift remaining threads in the table up
-    for (int i = lwp_running; i < lwp_procs - 1; i++) {
-        lwp_ptable[i] = lwp_ptable[i + 1];
-    }
-
     lwp_procs--;
 
     if (lwp_procs == 0) {
         // No more threads, return to main
         SetSP(main_sp);
         RESTORE_STATE();
+        return;
     }
 
-    // Otherwise, pick a new thread to run
-    lwp_running %= lwp_procs;
+    int curr = 0;
+    for(curr = lwp_running; curr < lwp_procs; curr++) {
+        lwp_ptable[curr] = lwp_ptable[curr + 1];
+    }
+
     SetSP(lwp_ptable[lwp_running].sp);
 
     RESTORE_STATE();
