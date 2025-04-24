@@ -32,26 +32,25 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     ptr_int_t *stack = malloc(stacksize * sizeof(ptr_int_t));
     if (!stack) return -1;
 
-    ptr_int_t *sp = stack + stacksize;
+    ptr_int_t *sp = stack + stacksize; // Start at top of allocated memory
 
-    // Step 1: dummy registers
-    *(--sp) = 0; // eax
-    *(--sp) = 0; // ebx
-    *(--sp) = 0; // ecx
-    *(--sp) = 0; // edx
-    *(--sp) = 0; // esi
-    *(--sp) = 0; // edi
+    // Push items downward: last one ends up at stack[0]
+    // So this is the actual top of the stack when sp is saved
 
-    // Step 2: fake frame
+    *(--sp) = (ptr_int_t)trampoline;  // ✅ goes to stack[0], will pop into EIP
+    *(--sp) = 0;                      // eax
+    *(--sp) = 0;                      // ebx
+    *(--sp) = 0;                      // ecx
+    *(--sp) = 0;                      // edx
+    *(--sp) = 0;                      // esi
+    *(--sp) = 0;                      // edi
     *(--sp) = 0;                      // fake EBP
-    *(--sp) = (ptr_int_t)lwp_exit;    // return addr if func returns
-    *(--sp) = (ptr_int_t)fun;         // func to call
-    *(--sp) = (ptr_int_t)arg;         // argument
-
-    // Step 3: trampoline at the top — will go into EIP
-    *(--sp) = (ptr_int_t)trampoline;
+    *(--sp) = (ptr_int_t)lwp_exit;    // return addr for func (esp[0] in trampoline)
+    *(--sp) = (ptr_int_t)fun;         // func (esp[1] in trampoline)
+    *(--sp) = (ptr_int_t)arg;         // arg  (esp[2] in trampoline)
 
     proc->sp = sp;
+
 
     return lwp_procs++;
 }
