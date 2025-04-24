@@ -16,9 +16,6 @@ static void trampoline(void) {
     ptr_int_t *esp;
     GetSP(esp);
     
-    // Since trampoline was "called", esp[0] is return address
-    // esp[1] = fun
-    // esp[2] = arg
     lwpfun func = (lwpfun)esp[1];
     void *arg = (void*)esp[2];
     
@@ -35,27 +32,26 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     ptr_int_t *stack = malloc(stacksize * sizeof(ptr_int_t));
     if (!stack) return -1;
 
-    ptr_int_t *sp = stack + stacksize;
+    ptr_int_t *sp = stack + stacksize; // Start at top of allocated memory
 
-    // Step 1: Set up what trampoline() will expect (like a normal call)
-    *(--sp) = (ptr_int_t)arg;         // arg to trampoline()
-    *(--sp) = (ptr_int_t)fun;         // func to call from trampoline()
-    *(--sp) = (ptr_int_t)lwp_exit;    // return addr if func ever returns
+    // Push items downward: last one ends up at stack[0]
+    // So this is the actual top of the stack when sp is saved
+
+    *(--sp) = (ptr_int_t)trampoline;  // ✅ goes to stack[0], will pop into EIP
+    *(--sp) = 0;                      // eax
+    *(--sp) = 0;                      // ebx
+    *(--sp) = 0;                      // ecx
+    *(--sp) = 0;                      // edx
+    *(--sp) = 0;                      // esi
+    *(--sp) = 0;                      // edi
     *(--sp) = 0;                      // fake EBP
-    
-    // Step 2: Dummy saved registers for RESTORE_STATE
-    *(--sp) = 0; // edi
-    *(--sp) = 0; // esi
-    *(--sp) = 0; // edx
-    *(--sp) = 0; // ecx
-    *(--sp) = 0; // ebx
-    *(--sp) = 0; // eax
-    
-    // Step 3: EIP from RESTORE_STATE jumps to trampoline
-    *(--sp) = (ptr_int_t)trampoline;
-    
+    *(--sp) = (ptr_int_t)lwp_exit;    // return addr for func (esp[0] in trampoline)
+    *(--sp) = (ptr_int_t)fun;         // func (esp[1] in trampoline)
+    *(--sp) = (ptr_int_t)arg;         // arg  (esp[2] in trampoline)
+
     proc->sp = sp;
-    
+
+
     return lwp_procs++;
 }
 
