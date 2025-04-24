@@ -12,6 +12,20 @@ static ptr_int_t *main_sp = NULL;
 // Optional custom scheduler
 static schedfun scheduler = NULL;
 
+static void trampoline() {
+    // Get the function and argument from the stack
+    void *arg;
+    lwpfun func;
+
+    asm("popl %eax");  // grab function
+    func = (lwpfun) ((ptr_int_t)__builtin_return_address(0));
+
+    asm("popl %ebx");  // grab argument
+    arg = (void*) ((ptr_int_t)__builtin_return_address(0));
+
+    func(arg);
+    lwp_exit();  // in case func returns
+}
 
 int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     if (lwp_procs >= LWP_PROC_LIMIT) return -1;
@@ -22,17 +36,14 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
 
     ptr_int_t *sp = stack + stacksize;
 
-    // --------------------
-    // (1) Push function argument
-    *(--sp) = (ptr_int_t)arg;
+    // Our fake stack frame — reverse push order
 
-    // (2) Push fake return address to go to lwp_exit after thread function returns
-    *(--sp) = (ptr_int_t)lwp_exit;
+    *(--sp) = (ptr_int_t)arg;           // Argument (pop into eax or read by trampoline)
+    *(--sp) = (ptr_int_t)fun;           // Function (to call with arg)
+    *(--sp) = (ptr_int_t)lwp_exit;      // return address if func returns
+    *(--sp) = 0;                        // fake EBP
 
-    // (3) Push fake EBP (base pointer)
-    *(--sp) = 0;
-
-    // (4) Push dummy registers to simulate SAVE_STATE
+    // dummy registers in correct order for RESTORE_STATE:
     *(--sp) = 0; // edi
     *(--sp) = 0; // esi
     *(--sp) = 0; // edx
@@ -40,8 +51,8 @@ int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
     *(--sp) = 0; // ebx
     *(--sp) = 0; // eax
 
-    // (5) Push the thread function — this will be popped into EIP by RESTORE_STATE
-    *(--sp) = (ptr_int_t)fun;
+    // What RESTORE_STATE will pop into EIP:
+    *(--sp) = (ptr_int_t)trampoline;
 
     proc->pid = lwp_procs;
     proc->stack = stack;
