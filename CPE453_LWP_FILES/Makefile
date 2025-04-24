@@ -31,7 +31,7 @@ $(LWP): lwp.o
 
 lwp.o: lwp.c lwp.h
 	cc -Wall -Werror -g -m32 -std=gnu99 -c -o $@ $<
-	cc -S $<
+	# cc -S $<
 
 clean:
 	-rm -f numbersmain snakemain hungrymain $(LWP) lwp.o liblwp.o numbersmain-ex snakemain-ex hungrymain-ex
