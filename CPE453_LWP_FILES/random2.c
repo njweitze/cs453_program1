@@ -1,170 +1,327 @@
-#include <stdlib.h>
 #include <stdio.h>
+
+#include <stdlib.h>
+
 #include "lwp.h"
 
-lwp_context lwp_ptable[LWP_PROC_LIMIT];
-int lwp_procs = 0;
-int lwp_running = -1;
 
-// Pointer to save the main (original) stack
-static ptr_int_t *main_sp = NULL;
 
-// Optional custom scheduler
-static schedfun scheduler = NULL;
 
-static void trampoline(void) {
-    ptr_int_t *esp;
-    GetSP(esp);
+
+/* MACROS:
+
+        SAVE_STATE()
+
+        RESTORE_STATE()
+
+        SetSP()
+
+        GetSP()
+
+*/
+
+
+
+// Global Pointer that gets stack pointers
+
+lwp_context lwp_ptable[LWP_PROC_LIMIT];     // Process Table
+
+int current_lwp_processes = 0;              // Current Number of LWP's
+
+int curr_process = -1;                      // Current Process
+
+unsigned long curr_pid_process = 0;     
+
+ptr_int_t *global_sp = NULL; 
+
+schedfun scheduler = NULL; 
+
+
+
+/* lwp functions */
+
+extern int new_lwp(lwpfun function ,void *arg, size_t stacksize); 
+
+extern int lwp_getpid();
+
+extern void lwp_yield();
+
+extern void lwp_exit();
+
+extern void lwp_start();
+
+extern void lwp_stop(); // 
+
+extern void lwp_set_scheduler(schedfun sched);
+
+
+
+/* helper functions*/
+
+void ribbed_robin(){
+
+    if(curr_process ==  current_lwp_processes - 1){
+
+        curr_process = 0; 
+
+    } else{
+
+        curr_process++; 
+
+    } 
+
+}
+
+
+
+void based_scheduler(){
+
+    if(scheduler == NULL){ // Default Scheduler
+
+        ribbed_robin(); 
+
+    }else{ // Other Schedulers
+
+        curr_process = (scheduler)(); // 
+
+    }
+
+}
+
+
+
+
+
+// This works
+
+int new_lwp(lwpfun function, void *arg, size_t stacksize){
+
     
-    lwpfun func = (lwpfun)esp[1];
-    void *arg = (void*)esp[2];
+
+    if(current_lwp_processes >= LWP_PROC_LIMIT){ // Checking the number of LWP's active 
+
+        // printf("Error: Reached LWP process limit\n"); // -- Debug Statement
+
+        return -1; 
+
+    }
+
+
+
+    ptr_int_t *stack_pointer = malloc(stacksize * 4); 
+
+
+
+    lwp_ptable[current_lwp_processes].stack = stack_pointer;
+
+
+
+    stack_pointer += stacksize; 
+
+    stack_pointer -= 1; 
+
+
+
+    // Arguments First 
+
+    *stack_pointer = (ptr_int_t) arg; 
+
+    stack_pointer -= 1; 
+
+
+
+    // 
+
+    *stack_pointer = (ptr_int_t) lwp_exit; //Why?
+
+    stack_pointer -= 1; 
+
+
+
+    // Function 
+
+    *stack_pointer = (ptr_int_t) function;
+
+    stack_pointer -= 1; 
+
+
+
+    // Default base pointer address
+
+    *stack_pointer = (ptr_int_t) 0xBEEFBEEF;
+
     
 
-    func(arg);
-    lwp_exit();
+    ptr_int_t base_pointer = (ptr_int_t) stack_pointer;
+
+    stack_pointer -= 7; 
+
+    *stack_pointer = base_pointer; 
+
+
+
+    // Copy Stuff 
+
+    curr_pid_process++; 
+
+    lwp_ptable[current_lwp_processes].pid = curr_pid_process; 
+
+    lwp_ptable[current_lwp_processes].sp = stack_pointer; 
+
+    lwp_ptable[current_lwp_processes].stacksize = stacksize; 
+
+    current_lwp_processes++; 
+
+
+
+    return lwp_ptable[current_lwp_processes - 1].pid;
+
 }
 
 
-int new_lwp(lwpfun fun, void *arg, size_t stacksize) {
-    if (lwp_procs >= LWP_PROC_LIMIT) return -1;
 
-    lwp_context *proc = &lwp_ptable[lwp_procs];
-    ptr_int_t *stack = malloc(stacksize * sizeof(ptr_int_t));
-    if (!stack) return -1;
+int  lwp_getpid(){
 
-    ptr_int_t *sp = stack + stacksize; // Start at top of allocated memory
+    if (curr_process == -1) {
 
-    // Push items downward: last one ends up at stack[0]
-    // So this is the actual top of the stack when sp is saved
+        return 0; // No LWP is currently running
 
-    *(--sp) = (ptr_int_t)trampoline;  // ✅ goes to stack[0], will pop into EIP
-    *(--sp) = 0;                      // eax
-    *(--sp) = 0;                      // ebx
-    *(--sp) = 0;                      // ecx
-    *(--sp) = 0;                      // edx
-    *(--sp) = 0;                      // esi
-    *(--sp) = 0;                      // edi
-    *(--sp) = 0;                      // fake EBP
-    *(--sp) = (ptr_int_t)lwp_exit;    // return addr for func (esp[0] in trampoline)
-    *(--sp) = (ptr_int_t)fun;         // func (esp[1] in trampoline)
-    *(--sp) = (ptr_int_t)arg;         // arg  (esp[2] in trampoline)
+    }
 
-    proc->pid = lwp_procs;
-    proc->stack = stack;
-    proc->stacksize = stacksize;
-    proc->sp = sp;
+    
 
+    return lwp_ptable[curr_process].pid;
 
-    return lwp_procs++;
 }
 
-// ==== lwp_start(): Start the threading system ====
-void lwp_start() {
-    if (lwp_procs == 0) return;
-
-    SAVE_STATE();        // Save the main thread’s CPU state
-    GetSP(main_sp);      // Save the main stack pointer
-
-    // Pick the first thread to run
-    lwp_running = scheduler ? scheduler() : 0;
-    SetSP(lwp_ptable[lwp_running].sp);
-
-    printf("[DEBUG] Switching to thread %d\n", lwp_running);
-    printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
-    ptr_int_t *p = lwp_ptable[lwp_running].sp;
-    printf("        top of stack: %p\n", (void*)p);
-    for (int i = 0; i < 10; i++) {
-        printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
-    }
 
 
-    RESTORE_STATE();     // Jump into thread's context
+void lwp_yield(){ // Soft-Bullies LWP's
+
+    SAVE_STATE(); 
+
+    GetSP(lwp_ptable[curr_process].sp);
+
+    
+
+    based_scheduler(); 
+
+    
+
+    SetSP(lwp_ptable[curr_process].sp); 
+
+    RESTORE_STATE(); 
+
 }
 
-// ==== lwp_yield(): Yield to another thread ====
-void lwp_yield() {
-    // Save current thread's state
-    SAVE_STATE();
-    GetSP(lwp_ptable[lwp_running].sp);
 
-    // Choose next thread (scheduler or round-robin)
-    // int prev = lwp_running;
-    if (scheduler) {
-        lwp_running = scheduler();
-    } else {
-        lwp_running = (lwp_running + 1) % lwp_procs;
-    }
 
-    SetSP(lwp_ptable[lwp_running].sp);
+void lwp_exit(){
 
-    printf("[DEBUG] Switching to thread %d\n", lwp_running);
-    printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
-    ptr_int_t *p = lwp_ptable[lwp_running].sp;
-    printf("        top of stack: %p\n", (void*)p);
-    for (int i = 0; i < 10; i++) {
-        printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
-    }
+    // printf("LWP end\n"); // -- Debug Statement
 
-    RESTORE_STATE(); // Jump to next thread
-}
+    free(lwp_ptable[curr_process].stack);
 
-// ==== lwp_exit(): Terminate the current thread ====
-void lwp_exit() {
-    free(lwp_ptable[lwp_running].stack);
+    current_lwp_processes--; 
 
-    // Shift remaining threads in the table up
-    for (int i = lwp_running; i < lwp_procs - 1; i++) {
-        lwp_ptable[i] = lwp_ptable[i + 1];
-    }
 
-    lwp_procs--;
 
-    if (lwp_procs == 0) {
-        // No more threads, return to main
-        SetSP(main_sp);
+    if(current_lwp_processes > 0 ){
 
-        printf("[DEBUG] Switching to thread %d\n", lwp_running);
-        printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
-        ptr_int_t *p = lwp_ptable[lwp_running].sp;
-        printf("        top of stack: %p\n", (void*)p);
-        for (int i = 0; i < 10; i++) {
-            printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
+        int curr = 0; 
+
+        for(curr = curr_process; curr < current_lwp_processes; curr++){
+
+            lwp_ptable[curr] = lwp_ptable[curr + 1]; 
+
         }
 
+    } else{ // current_lwp_processes == 0
+
+        SetSP(global_sp);  
+
         RESTORE_STATE();
+
+        return; 
+
     }
 
-    // Otherwise, pick a new thread to run
-    lwp_running %= lwp_procs;
-    SetSP(lwp_ptable[lwp_running].sp);
 
-    printf("[DEBUG] Switching to thread %d\n", lwp_running);
-    printf("        sp = %p\n", (void*)lwp_ptable[lwp_running].sp);
-    ptr_int_t *p = lwp_ptable[lwp_running].sp;
-    printf("        top of stack: %p\n", (void*)p);
-    for (int i = 0; i < 10; i++) {
-        printf("          stack[%d] = 0x%08lx\n", i, (unsigned long)p[i]);
-    }
 
-    RESTORE_STATE();
+    SetSP(lwp_ptable[curr_process].sp); 
+
+    RESTORE_STATE(); 
+
 }
 
-// ==== lwp_stop(): Pause the LWP system ====
-void lwp_stop() {
+
+
+
+
+// When lwp_start() is called:
+
+void lwp_start(){
+
+    // Check if there are processes to run
+
+    if (current_lwp_processes <= 0) {
+
+        return;
+
+    }
+
+    
+
+    // Save the main thread's context
+
     SAVE_STATE();
-    GetSP(lwp_ptable[lwp_running].sp);
 
-    lwp_running = -1;
-    SetSP(main_sp);
+    
+
+    // Get the main thread's stack pointer
+
+    GetSP(global_sp);
+
+    
+
+    // Set the current process to the first one
+
+    curr_process = 0;
+
+    
+
+    // Switch to the first process
+
+    SetSP(lwp_ptable[curr_process].sp);
+
+    
+
+    // Restore the new context (this will start running the first LWP)
+
     RESTORE_STATE();
+
 }
 
-// ==== lwp_getpid(): Return current thread's ID ====
-int lwp_getpid() {
-    return (lwp_running >= 0) ? lwp_ptable[lwp_running].pid : -1;
+
+
+
+
+void lwp_stop(){
+
+    SAVE_STATE(); 
+
+    GetSP(lwp_ptable[curr_process].sp);
+
+    SetSP(global_sp); 
+
+    RESTORE_STATE(); 
+
 }
 
-// ==== lwp_set_scheduler(): Install a custom scheduler ====
-void lwp_set_scheduler(schedfun sched) {
+
+
+void lwp_set_scheduler(schedfun sched){
+
     scheduler = sched;
+
 }

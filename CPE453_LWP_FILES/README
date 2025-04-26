@@ -1,0 +1,6 @@
+Noah Weitzel
+
+Short Question Response:
+This lwp library is much simpler than a standard thread library such as POSIX. That is because the lwp threads have manual switching via the lwp_yield() function as opposed to the automatic switiching done in standard threads through timers and interrupts. Additionally, the lwp threads are all handled in user space and unattached to the kernel. Real threads are managed by the operating system.
+
+Two things that could improve the lwp threads are adding preemtive scheduling and locking. Preemptive scheduling would allow the system to be much more fair in time allotted to each thread. Locking would allow threads to safely share data without any problems
